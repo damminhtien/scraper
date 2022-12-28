@@ -7,8 +7,8 @@ import re
 session = requests.Session()
 
 PAGE_RANGE = range(1, 10)
-start_month_year = 'October, 2022'
-end_month_year = 'March, 2023'
+start_month_year = 'March, 2023'
+end_month_year = 'January, 2024'
 URL_CI = "https://conferenceindex.org/conferences/computer-science"
 URL_SJR = "https://www.scimagojr.com/"
 URL_SJR_SEARCH = "https://www.scimagojr.com/journalsearch.php"
@@ -42,20 +42,19 @@ for page in PAGE_RANGE:
                     print(a_conference.text.strip())
 
 
-print("\nThere are {} conferences from {} to {}".format(len(list_conferences), start_month_year, end_month_year))
-
-
 # Extract conference's strings to ISSN
-list_conferences_issn = []
+list_conferences_issn = set()
 for conference in list_conferences:
     try:
         issn = re.findall(r"\((.+?)\)", conference)
-        if (len(issn) < 1): 
+        if (len(issn) < 1):
             continue
-        list_conferences_issn.append(issn[0])
+        list_conferences_issn.add(issn[0])
     except AttributeError:
         print('Failed to extract ISSN from conference')
 print(list_conferences_issn)
+print("\nThere are {} conferences from {} to {}".format(
+    len(list_conferences_issn), start_month_year, end_month_year))
 
 print("\nStart checking conferences on SJR ============")
 print("Potential conferences:")
@@ -66,26 +65,27 @@ for issn in list_conferences_issn:
     html_soup = BeautifulSoup(r.text, 'html.parser')
     div_search_results = html_soup.find(class_='search_results')
     if (len(div_search_results)):
-        a_search_result =  div_search_results.find_all('a', href=True)
+        a_search_result = div_search_results.find_all('a', href=True)
         if (len(a_search_result) < 1):
             continue
         hindexs = []
         conferences_info = []
+        is_smaller_than_8 = True
         for a in a_search_result:
             r_conference = session.get(URL_SJR + a['href'])
-            html_soup_conference = BeautifulSoup(r_conference.text, 'html.parser')
+            html_soup_conference = BeautifulSoup(
+                r_conference.text, 'html.parser')
             div_hindexnumber = html_soup_conference.find(class_='hindexnumber')
-            hindex = div_hindexnumber.text.strip()
-            hindexs.append(int(hindex))
-            h1_name_conference = html_soup_conference.find(['h1'])
-            conferences_info.append("h-index: {} {} {}".format(hindex, h1_name_conference.text.strip(), URL_SJR + a['href']))
-        is_smaller_than_8 = True
-        for hindex in hindexs:
-            if (hindex >= 8):
+            hindex = int(div_hindexnumber.text.strip())
+            if hindex < 8:
+                continue
+            else:
                 is_smaller_than_8 = False
-                break
-        if (is_smaller_than_8):
-            continue
+            hindexs.append(hindex)
+            h1_name_conference = html_soup_conference.find(['h1'])
+            conferences_info.append(
+                "h-index: {} {} {}".format(hindex, h1_name_conference.text.strip(), URL_SJR + a['href']))
+
         list_potientail_conferences.append(issn)
         print(issn)
         for conference_info in conferences_info:
